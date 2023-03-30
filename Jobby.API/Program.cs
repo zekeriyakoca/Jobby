@@ -1,3 +1,5 @@
+using Upwork.SDK;
+
 namespace Jobby.API
 {
     public class Program
@@ -12,6 +14,8 @@ namespace Jobby.API
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+
+            builder.Services.AddUpworkService();
 
             var app = builder.Build();
 
