@@ -18,18 +18,26 @@ namespace Upwork.SDK
         private readonly string clientSecret;
         private readonly string returnUrl;
 
+        private string authToken;
+        private string refreshToken;
+
         internal ConnectionManager(HttpClient client, IConfiguration configuration)
         {
             this.client = client;
             this.configuration = configuration;
-            clientId = configuration.GetValue<string>("ClientId");
-            clientSecret = configuration.GetValue<string>("ClientSecret");
-            returnUrl = configuration.GetValue<string>("ReturnUlr");
+            clientId = configuration.GetValue<string>("ClientId") ?? throw new ArgumentNullException("ClientId cannot be null");
+            clientSecret = configuration.GetValue<string>("ClientSecret") ?? throw new ArgumentNullException("ClientSecret cannot be null");
+            returnUrl = configuration.GetValue<string>("ReturnUrl") ?? throw new ArgumentNullException("ReturnUlr cannot be null");
         }
 
-        internal Task<string> GetAuthorizationTokenAsync()
+        internal async ValueTask<string> GetAuthorizationTokenAsync()
         {
-            var code = GetAuthorizationCodeAsync();
+            if (authToken != null)
+            {
+                return authToken;
+            }
+
+            var code = await GetAuthorizationCodeAsync();
 
             var resp = await client.PostAsJsonAsync($" /api/v3/oauth2/token", new AuthorizationRequest
             {
@@ -40,37 +48,60 @@ namespace Upwork.SDK
 
             if (!resp.IsSuccessStatusCode)
             {
-                if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                {
-
-                    throw new Exception("Upwork API : 'Unauthorized' response returned while fetching access token!");
-                }
+                HandleUnauthorizedResponse(resp);
                 throw new Exception("Upwork API : Unable to get access token!");
             }
 
             var tokens = await resp.Content.ReadFromJsonAsync<AuthorizationResponse>();
-            if (tokens is default)
+            if (tokens == default)
             {
                 throw new Exception("Upwork API : Unable to parse tokens!");
             }
+            CacheTokens(tokens);
 
             return tokens.AccessToken;
         }
 
-        private string GetAuthorizationCodeAsync()
+        internal async ValueTask<string> RefreshAuthorizationTokenAsync()
         {
-            var resp = await client.GetAsync($"/ab/account-security/oauth2/authorize?response_type=code&clientId={clientId}&return_url={returnUrl}");
+            if (String.IsNullOrWhiteSpace(refreshToken))
+                return await GetAuthorizationCodeAsync();
+
+            var resp = await client.GetAsync($"/ab/account-security/oauth2/authorize?response_type=refresh_token&client_secret={clientSecret}&refresh_token={refreshToken}");
             if (!resp.IsSuccessStatusCode)
             {
-                if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                {
+                HandleUnauthorizedResponse(resp);
+                throw new Exception("Upwork API : Unable to refresh token!");
+            }
+            var resposne = await resp.Content.ReadAsStringAsync(); // TODO : Complete from here
+            // Cache tokens
+            return resposne.Token;
+        }
 
-                    throw new Exception("Upwork API : 'Unauthorized' response returned while fetching authorization code!");
-                }
+        private async Task<string> GetAuthorizationCodeAsync()
+        {
+            var resp = await client.GetAsync($"/ab/account-security/oauth2/authorize?response_type=authorization_code&clientId={clientId}&return_url={returnUrl}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                HandleUnauthorizedResponse(resp);
                 throw new Exception("Upwork API : Unable to get authorization code!");
             }
             var code = await resp.Content.ReadAsStringAsync(); // TODO : Check here
             return code;
+        }
+
+        private void CacheTokens(AuthorizationResponse tokens)
+        {
+            authToken = tokens.AccessToken;
+            refreshToken = tokens.RefreshToken;
+        }
+
+        private static void HandleUnauthorizedResponse(HttpResponseMessage resp)
+        {
+            if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                throw new Exception("Upwork API : 'Unauthorized' response returned!");
+            }
         }
     }
 }

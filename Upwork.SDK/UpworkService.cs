@@ -20,7 +20,7 @@ namespace Upwork.SDK
         {
             if (client.DefaultRequestHeaders.Authorization is default)
             {
-                var authToken = connectionManager.GetAuthorizationTokenAsync();
+                var authToken = connectionManager.GetAuthorizationTokenAsync().GetAwaiter().GetResult();
                 client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authToken);
             }
 

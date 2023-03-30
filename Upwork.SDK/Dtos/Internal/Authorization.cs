@@ -23,6 +23,6 @@ namespace Upwork.SDK.Dtos.Internal
         internal string RefreshToken { get; set; }
     }
 
-    internal record AuthorizationResponse([JsonPropertyName("access_token")]  string AccessToken, [JsonPropertyName("refresh_token")] string RefreshToken, )
+    internal record AuthorizationResponse([property: JsonPropertyName("access_token")] string AccessToken, [property: JsonPropertyName("refresh_token")] string RefreshToken);
         
 }
